@@ -1,23 +1,48 @@
+#include <thread>
 #include <benchmark/benchmark.h>
+#include "lock_queue.h"
+#include "spinlock.h"
 
-// Function to benchmark
-static void BM_StringCreation(benchmark::State& state) {
-    for (auto _ : state) {
-        std::string empty_string;
-        benchmark::DoNotOptimize(empty_string);
-    }
-}
-// Register the function as a benchmark
-BENCHMARK(BM_StringCreation);
+namespace perfx {
 
-static void BM_StringCopy(benchmark::State& state) {
-    std::string x = "hello";
-    for (auto _ : state) {
-        std::string copy(x);
+struct NonOpLock {
+  void lock() {}
+  void unlock() {}
+};
+
+struct LockQueuePar {
+  using QType = LockQueue<int, 1'000, std::mutex>;
+  static QType queue;
+};
+LockQueue<int, 1'000, std::mutex> LockQueuePar::queue;
+
+template<bool SLEEP>
+struct SpinlockQueuePar {
+  using QType = LockQueue<int, 1'000, Spinlock<SLEEP>>;
+  static QType queue;
+};
+
+template<bool SLEEP>
+typename SpinlockQueuePar<SLEEP>::QType SpinlockQueuePar<SLEEP>::queue;
+
+template<typename T>
+void BM_LockQueue(benchmark::State& state) {
+  auto N = state.range(0);
+  for (auto _ : state) {
+    for (auto i = 0; i < N; ++i) {
+      T::queue.push(i);
+      benchmark::DoNotOptimize(T::queue.pop());
     }
+  }
+  state.SetItemsProcessed(state.iterations() * N);
 }
-// Register the function as a benchmark
-BENCHMARK(BM_StringCopy);
+
+
+BENCHMARK_TEMPLATE(BM_LockQueue, LockQueuePar)->Arg(1'000)->Threads(1)->Threads(2)->Threads(4)->Threads(8)->Threads(16)->Threads(32)->Threads(64);
+BENCHMARK_TEMPLATE(BM_LockQueue, SpinlockQueuePar<true>)->Arg(1'000)->Threads(1)->Threads(2)->Threads(4)->Threads(8)->Threads(16)->Threads(32)->Threads(64);
+BENCHMARK_TEMPLATE(BM_LockQueue, SpinlockQueuePar<false>)->Arg(1'000)->Threads(1)->Threads(2)->Threads(4)->Threads(8)->Threads(16)->Threads(32)->Threads(64);
+
+}
 
 BENCHMARK_MAIN();
 
