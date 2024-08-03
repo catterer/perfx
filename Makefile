@@ -1,5 +1,5 @@
 # Compiler and flags
-CXX = g++
+CXX = clang++
 CXXFLAGS = -std=c++20 -Wall -Wpedantic -O2
 
 # Google Test and Google Benchmark flags
