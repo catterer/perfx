@@ -2,3 +2,4 @@ main
 bench
 test
 bench-san
+coro
